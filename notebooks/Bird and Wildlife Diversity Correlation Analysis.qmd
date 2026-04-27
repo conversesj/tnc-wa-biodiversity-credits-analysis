@@ -1,0 +1,384 @@
+---
+title: "Bird and Wildlife Diversity Correlation Analysis Using 30-Minute Independent Events"
+author: "Jacqueline Wu"
+date: "2026-04-16"
+format:
+  html:
+    toc: true
+    embed-resources: true
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+# Load packages
+library(tidyverse)
+library(lubridate)
+library(vegan)
+library(knitr)
+```
+
+#### 1. Read data
+```{r}
+birds <- read_csv("E:/TNC/detections_kept_gte_threshold.csv")
+wildlife <- read_csv("E:/TNC/wildlife insights/images_2009899.csv")
+```
+#### 2. Clean and standardize data
+```{r}
+birds_clean <- birds %>%
+  mutate(
+    site = as.character(site),
+    plot = as.numeric(plot),
+    species = str_to_lower(detection_common_name),
+    date = as.Date(date),
+    hour = as.numeric(hour),
+    start_s = as.numeric(start_s),
+    datetime = as.POSIXct(date) + hours(hour) + seconds(start_s)
+  ) %>%
+  filter(
+    !is.na(site),
+    !is.na(plot),
+    !is.na(species),
+    !is.na(datetime)
+  )
+
+wildlife_clean <- wildlife %>%
+  mutate(
+    deployment_id = as.character(deployment_id),
+    site = str_extract(deployment_id, "^[^_]+"),
+    plot = str_extract(deployment_id, "(?<=_)[0-9]+") %>% as.numeric(),
+    species = str_to_lower(common_name),
+    timestamp = parse_date_time(timestamp, orders = c("Y/m/d H:M", "Y/m/d H:M:S")),
+    number_of_objects = as.numeric(number_of_objects)
+  ) %>%
+  filter(
+    !is.na(site),
+    !is.na(plot),
+    !is.na(species),
+    !is.na(timestamp)
+  )
+```
+#### 2b. compare based on calendar days
+```{r}
+birds_clean <- birds %>%
+  mutate(
+    site = as.character(site),
+    plot = as.numeric(plot),
+    species = str_to_lower(detection_common_name),
+    date = as.Date(date),
+    hour = as.numeric(hour),
+    start_s = as.numeric(start_s),
+    datetime = as.POSIXct(date) + hours(hour) + seconds(start_s),
+    sample_day = as.Date(datetime)
+  ) %>%
+  filter(
+    !is.na(site),
+    !is.na(plot),
+    !is.na(species),
+    !is.na(datetime),
+    !is.na(sample_day)
+  )
+
+wildlife_clean <- wildlife %>%
+  mutate(
+    deployment_id = as.character(deployment_id),
+    site = str_extract(deployment_id, "^[^_]+"),
+    plot = str_extract(deployment_id, "(?<=_)[0-9]+") %>% as.numeric(),
+    species = str_to_lower(common_name),
+    timestamp = parse_date_time(str_trim(as.character(timestamp)),
+                                orders = c("Y/m/d H:M", "Y/m/d H:M:S")),
+    number_of_objects = as.numeric(number_of_objects),
+    sample_day = as.Date(timestamp)
+  ) %>%
+  filter(
+    !is.na(site),
+    !is.na(plot),
+    !is.na(species),
+    !is.na(timestamp),
+    !is.na(sample_day)
+  )
+```
+#### 3.  Keep only matched plots wildlife is the reference
+```{r}
+bird_plots <- birds_clean %>%
+  distinct(site, plot)
+
+wild_plots <- wildlife_clean %>%
+  distinct(site, plot)
+
+matched_plots <- inner_join(wild_plots, bird_plots, by = c("site", "plot")) %>%
+  arrange(site, plot)
+
+# Keep only matched plots in both datasets
+birds_matched <- birds_clean %>%
+  semi_join(matched_plots, by = c("site", "plot"))
+
+wildlife_matched <- wildlife_clean %>%
+  semi_join(matched_plots, by = c("site", "plot"))
+```
+#### 3b. find common days
+```{r}
+# Shared plot-day combinations
+bird_plot_days <- birds_clean %>%
+  semi_join(matched_plots, by = c("site", "plot")) %>%
+  distinct(site, plot, sample_day)
+
+wild_plot_days <- wildlife_clean %>%
+  semi_join(matched_plots, by = c("site", "plot")) %>%
+  distinct(site, plot, sample_day)
+
+matched_plot_days <- inner_join(
+  bird_plot_days,
+  wild_plot_days,
+  by = c("site", "plot", "sample_day")
+) %>%
+  arrange(site, plot, sample_day)
+
+# Keep only shared plot-days
+birds_daymatched <- birds_clean %>%
+  semi_join(matched_plot_days, by = c("site", "plot", "sample_day"))
+
+wildlife_daymatched <- wildlife_clean %>%
+  semi_join(matched_plot_days, by = c("site", "plot", "sample_day"))
+```
+#### 4. Create 30-minute independent windows for wildlife
+```{r}
+wildlife_events <- wildlife_matched %>%
+  arrange(site, plot, species, timestamp) %>%
+  group_by(site, plot, species) %>%
+  mutate(
+    time_diff_min = as.numeric(difftime(timestamp, lag(timestamp), units = "mins")),
+    new_event = if_else(is.na(time_diff_min) | time_diff_min > 30, 1, 0),
+    event_id = cumsum(new_event)
+  ) %>%
+  ungroup()
+
+# Keep one row per independent event
+wildlife_independent <- wildlife_events %>%
+  distinct(site, plot, species, event_id)
+```
+#### 5. Create 30-minute windows for birds
+```{r}
+# For birds, we use datetime and collapse detections into 30-minute bins.
+# This is not exactly the same as camera-trap independent events,
+# but it makes the temporal unit more comparable.
+
+birds_30min <- birds_matched %>%
+  mutate(
+    window_30min = floor_date(datetime, unit = "30 minutes")
+  ) %>%
+  distinct(site, plot, species, window_30min)
+```
+#### 4b+5b. 30-minute windows for wildlife and birds
+```{r}
+wildlife_events_day <- wildlife_daymatched %>%
+  arrange(site, plot, sample_day, species, timestamp) %>%
+  group_by(site, plot, sample_day, species) %>%
+  mutate(
+    time_diff_min = as.numeric(difftime(timestamp, lag(timestamp), units = "mins")),
+    new_event = if_else(is.na(time_diff_min) | time_diff_min > 30, 1, 0),
+    event_id = cumsum(new_event)
+  ) %>%
+  ungroup()
+
+wildlife_independent_day <- wildlife_events_day %>%
+  distinct(site, plot, sample_day, species, event_id)
+
+birds_30min_day <- birds_daymatched %>%
+  mutate(
+    window_30min = floor_date(datetime, unit = "30 minutes")
+  ) %>%
+  distinct(site, plot, sample_day, species, window_30min)
+```
+#### 6. Build community matrices by plot
+```{r}
+# ----- Bird matrix -----
+bird_comm <- birds_30min %>%
+  count(site, plot, species, name = "abundance") %>%
+  unite("plot_id", site, plot, remove = FALSE) %>%
+  select(plot_id, species, abundance) %>%
+  pivot_wider(
+    names_from = species,
+    values_from = abundance,
+    values_fill = 0
+  )
+
+bird_mat <- bird_comm %>%
+  column_to_rownames("plot_id")
+
+# ----- Wildlife matrix -----
+wild_comm <- wildlife_independent %>%
+  count(site, plot, species, name = "abundance") %>%
+  unite("plot_id", site, plot, remove = FALSE) %>%
+  select(plot_id, species, abundance) %>%
+  pivot_wider(
+    names_from = species,
+    values_from = abundance,
+    values_fill = 0
+  )
+
+wild_mat <- wild_comm %>%
+  column_to_rownames("plot_id")
+
+# Make sure plot order is aligned
+common_plot_ids <- intersect(rownames(bird_mat), rownames(wild_mat))
+
+bird_mat <- bird_mat[common_plot_ids, , drop = FALSE]
+wild_mat <- wild_mat[common_plot_ids, , drop = FALSE]
+
+cat("Number of common plot IDs used in diversity comparison:", length(common_plot_ids), "\n")
+```
+#### 7. Calculate plot-level diversity
+```{r}
+bird_div <- tibble(
+  plot_id = rownames(bird_mat),
+  bird_richness = specnumber(bird_mat),
+  bird_shannon = diversity(bird_mat, index = "shannon"),
+  bird_simpson = diversity(bird_mat, index = "simpson")
+)
+
+wild_div <- tibble(
+  plot_id = rownames(wild_mat),
+  wild_richness = specnumber(wild_mat),
+  wild_shannon = diversity(wild_mat, index = "shannon"),
+  wild_simpson = diversity(wild_mat, index = "simpson")
+)
+
+div_compare <- inner_join(bird_div, wild_div, by = "plot_id") %>%
+  separate(plot_id, into = c("site", "plot"), sep = "_", remove = FALSE) %>%
+  mutate(plot = as.numeric(plot))
+```
+#### 7b. diversity by days
+```{r}
+# Bird plot-day community
+bird_day_comm <- birds_30min_day %>%
+  count(site, plot, sample_day, species, name = "abundance") %>%
+  unite("plot_day_id", site, plot, sample_day, remove = FALSE) %>%
+  select(plot_day_id, species, abundance) %>%
+  pivot_wider(names_from = species, values_from = abundance, values_fill = 0)
+
+bird_day_mat <- bird_day_comm %>%
+  column_to_rownames("plot_day_id")
+
+bird_day_div <- tibble(
+  plot_day_id = rownames(bird_day_mat),
+  bird_richness = specnumber(bird_day_mat),
+  bird_shannon = diversity(bird_day_mat, index = "shannon"),
+  bird_simpson = diversity(bird_day_mat, index = "simpson")
+)
+
+# Wildlife plot-day community
+wild_day_comm <- wildlife_independent_day %>%
+  count(site, plot, sample_day, species, name = "abundance") %>%
+  unite("plot_day_id", site, plot, sample_day, remove = FALSE) %>%
+  select(plot_day_id, species, abundance) %>%
+  pivot_wider(names_from = species, values_from = abundance, values_fill = 0)
+
+wild_day_mat <- wild_day_comm %>%
+  column_to_rownames("plot_day_id")
+
+wild_day_div <- tibble(
+  plot_day_id = rownames(wild_day_mat),
+  wild_richness = specnumber(wild_day_mat),
+  wild_shannon = diversity(wild_day_mat, index = "shannon"),
+  wild_simpson = diversity(wild_day_mat, index = "simpson")
+)
+
+# Join paired plot-day diversity
+div_compare_day <- inner_join(bird_day_div, wild_day_div, by = "plot_day_id") %>%
+  separate(plot_day_id, into = c("site", "plot", "sample_day"), sep = "_", remove = FALSE) %>%
+  mutate(
+    plot = as.numeric(plot),
+    sample_day = as.Date(sample_day)
+  )
+```
+#### 8. Correlation tests
+```{r}
+# Richness
+cor_rich_pearson <- cor.test(div_compare$bird_richness, div_compare$wild_richness, method = "pearson")
+cor_rich_spearman <- cor.test(div_compare$bird_richness, div_compare$wild_richness, method = "spearman")
+
+# Shannon
+cor_shannon_pearson <- cor.test(div_compare$bird_shannon, div_compare$wild_shannon, method = "pearson")
+cor_shannon_spearman <- cor.test(div_compare$bird_shannon, div_compare$wild_shannon, method = "spearman")
+
+# Simpson
+cor_simpson_pearson <- cor.test(div_compare$bird_simpson, div_compare$wild_simpson, method = "pearson")
+cor_simpson_spearman <- cor.test(div_compare$bird_simpson, div_compare$wild_simpson, method = "spearman")
+```
+#### 9. Simple linear models and visualization
+```{r}
+lm_rich <- lm(bird_richness ~ wild_richness, data = div_compare)
+lm_shannon <- lm(bird_shannon ~ wild_shannon, data = div_compare)
+lm_simpson <- lm(bird_simpson ~ wild_simpson, data = div_compare)# Richness plot
+ggplot(div_compare, aes(x = wild_richness, y = bird_richness)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_wrap(~site, scales = "free") +
+  labs(
+    title = "Bird vs Wildlife Species Richness by Plot",
+    x = "Wildlife richness",
+    y = "Bird richness"
+  ) +
+  theme_bw()
+
+# Shannon plot
+ggplot(div_compare, aes(x = wild_shannon, y = bird_shannon)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_wrap(~site, scales = "free") +
+  labs(
+    title = "Bird vs Wildlife Shannon Diversity by Plot",
+    x = "Wildlife Shannon diversity",
+    y = "Bird Shannon diversity"
+  ) +
+  theme_bw()
+
+# Simpson plot
+ggplot(div_compare, aes(x = wild_simpson, y = bird_simpson)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_wrap(~site, scales = "free") +
+  labs(
+    title = "Bird vs Wildlife Simpson Diversity by Plot",
+    x = "Wildlife Simpson diversity",
+    y = "Bird Simpson diversity"
+  ) +
+  theme_bw()
+```
+#### 9b. Visualization by day
+```{r}
+# Bird vs Wildlife richness at plot-day level
+ggplot(div_compare_day, aes(x = wild_richness, y = bird_richness)) +
+  geom_point(alpha = 0.7, size = 1.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_wrap(~site, scales = "free") +
+  labs(
+    title = "Bird vs Wildlife Species Richness by Shared Plot-Day",
+    x = "Wildlife richness",
+    y = "Bird richness"
+  ) +
+  theme_bw()
+
+# Bird vs Wildlife Shannon at plot-day level
+ggplot(div_compare_day, aes(x = wild_shannon, y = bird_shannon)) +
+  geom_point(alpha = 0.7, size = 1.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_wrap(~site, scales = "free") +
+  labs(
+    title = "Bird vs Wildlife Shannon Diversity by Shared Plot-Day",
+    x = "Wildlife Shannon diversity",
+    y = "Bird Shannon diversity"
+  ) +
+  theme_bw()
+
+# Bird vs Wildlife Simpson at plot-day level
+ggplot(div_compare_day, aes(x = wild_simpson, y = bird_simpson)) +
+  geom_point(alpha = 0.7, size = 1.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  facet_wrap(~site, scales = "free") +
+  labs(
+    title = "Bird vs Wildlife Simpson Diversity by Shared Plot-Day",
+    x = "Wildlife Simpson diversity",
+    y = "Bird Simpson diversity"
+  ) +
+  theme_bw()
+```
