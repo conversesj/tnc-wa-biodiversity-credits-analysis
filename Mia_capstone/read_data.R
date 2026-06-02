@@ -21,3 +21,15 @@ f20 <- read_excel(here("data/Hoh","Hoh238_656_merged_results_with_filename.xlsx"
 f21 <- read_excel(here("data/Hoh","Hoh244_506_01merged_results_with_filename.xlsx"))
 f22 <- read_excel(here("data/Hoh","Hoh254_545_merged_results_with_filename.xlsx"))
 #or
+files <- list.files(
+  here("Data", "Hoh"),
+  pattern = "\\.xlsx$",
+  full.names = TRUE
+)
+
+f <- lapply(files, read_excel)
+
+list2env(
+  setNames(f, paste0("f", seq_along(f))),
+  envir = .GlobalEnv
+)
