@@ -126,16 +126,80 @@ species[which(apply(all.obs,c(1),sum)<10)]
 #so for each day and point, count the number of recording files that exist and put this in a day * point matrix 
 
 #effort matrix
-effort <- matrix(0,nrow = length(dates),ncol = 22)
-for(i in 1:22){
-  site <- get(paste0("H",i,".s"))
-  for(t in 1:length(dates)){
-    dt <- which(site$date == dates[t])
-    if(length(dt > 0)){
-      effort[t,i] <- 1 
-    }
-  }
+# effort <- matrix(0,nrow = length(dates),ncol = 22)
+# for(i in 1:22){
+#   site <- get(paste0("H",i,".s"))
+#   for(t in 1:length(dates)){
+#     dt <- which(site$date == dates[t])
+#     if(length(dt > 0)){
+#       effort[t,i] <- 1 
+#     }
+#   }
+# }
+
+#effort matrix: a day x point matrix, value ranging from 0 to 24
+#each cell = num of successful recording hours for that day and point
+get.effort.one.point <- function(input, dates){
+ 
+  #keep one row per recording file
+  files <- input %>%
+    select(source_file) %>%
+    distinct()
+  
+  #extract dates, hours, and time from the source_file column
+  files$date_string <- str_extract(files$source_file, "\\d{8}")
+  files$time_string <- str_extract(files$source_file, "(?<=_)[0-2][0-9][0-5][0-9][0-5][0-9](?=\\.)")
+  
+  files$date <- ymd(files$date_string)
+  files$hour <- as.numeric(substr(files$time_string, 1, 2))
+  
+  #count the num of unique successful recording hours per day
+  daily.effort <- files %>%
+    filter(!is.na(date), !is.na(hour), hour >= 0, hour <= 23) %>%
+    group_by(date) %>%
+    summarize(hours_recorded = n_distinct(hour), .groups = "drop")
+  
+  #create one effort value for every date in the full dates vector
+  effort.vec <- rep(0, length(dates))
+  names(effort.vec) <- as.character(dates)
+  
+  matched <- match(as.character(daily.effort$date), as.character(dates))
+  effort.vec[matched[!is.na(matched)]] <- daily.effort$hours_recorded[!is.na(matched)]
+  
+  return(effort.vec)
 }
+
+
+get.effort.matrix <- function(code, file.count, dates){
+  
+  effort.mat <- matrix(0, nrow = length(dates), ncol = file.count)
+  rownames(effort.mat) <- as.character(dates)
+  colnames(effort.mat) <- paste0(code, 1:file.count)
+  
+  for(i in 1:file.count){
+    site <- get(paste0(code, i))
+    effort.mat[, i] <- get.effort.one.point(site, dates)
+  }
+  
+  return(effort.mat)
+}
+
+
+H.effort <- get.effort.matrix("H", 22, dates)
+E.effort <- get.effort.matrix("E", 24, dates)
+C.effort <- get.effort.matrix("C", 15, dates)
+
+#combine them in the same point order as all.obs
+effort <- cbind(H.effort, E.effort, C.effort)
+
+#review 
+dim(effort)
+range(effort)
+head(effort[, 1:6])
+
+stopifnot(nrow(effort) == length(dates))
+stopifnot(ncol(effort) == dim(all.obs)[3])
+stopifnot(all(effort >= 0 & effort <= 24))
 
 ######################################################################
 #                                                                    #  
