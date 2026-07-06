@@ -220,36 +220,35 @@ for(p in 1:n.points){
     # Observation Process  
     for(t in 1:n.days){
       
-      all.obs[s,t,p] ~ dbern(z[s,p] * p.det[s,t,p] * effort[t,p])  #state * p * effort (0 or 1)
+      all.obs[s,t,p] ~ dbern(z[s,p] * p.det[s,t,p])  #state * p 
       
       #observation model
-      logit(p.det[s,t,p]) <- int.p  #+ p.rand.point[p] + p.rand.species[s]
+      logit(p.det[s,t,p]) <- int.p + beta.effort*log(effort[t,p]) + p.rand.point[p] + p.rand.species[s]
       
     }#t replicate days
         
-        
     #occupancy model 
-    logit(psi[s,p]) <- int.psi  #+ psi.rand.species[s]
+    logit(psi[s,p]) <- int.psi  # proximity to water + proximity to road + forest mgmt history + forest structure + psi.rand.species[s]
   }#s species
 }#p point
   
+for(p in 1:n.points){
+  p.rand.point[p] ~ dnorm(0,sd = sd.p.point)
+}
+for(s in 1:n.species){
+  p.rand.species[s] ~ dnorm(0,sd = sd.p.species)
+}
+  
 int.p ~ dnorm(0,1)
+beta.effort ~ dnorm(0,1)
+sd.p.point ~ dunif(0,5)
+sd.p.species ~ dunif(0,5)
+
 int.psi ~ dnorm(0,1)
 
-
-#Random effects 
-#for(p in 1:n.points){
-#  p.rand.point[p] ~ dnorm(0,sd = sd.p.site)
-#}
-#for(s in 1:n.species){
-#  p.rand.species[y] ~ dnorm(0,sd = sd.p.species)
-#}
 #for(s in 1:n.species){
 #  psi.rand.species[s] ~ dnorm(0,sd = sd.psi.species)
 #}
-#sd.p.site ~ dunif(0,1)
-#sd.p.species ~ dunif(0,1)
-#sd.psi.species ~ dunif(0,1)
 
 })
 
