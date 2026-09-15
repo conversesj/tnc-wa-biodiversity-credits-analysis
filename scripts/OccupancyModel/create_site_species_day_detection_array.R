@@ -1,4 +1,3 @@
-library(here)
 library(readxl)
 library(stringr)
 library(lubridate)
@@ -29,13 +28,31 @@ length(files.C)
 length(files)
 
 
+#get site name from prediction filename
+get.site <- function(file){
+  
+  site <- basename(file) %>%
+    str_remove("merged_results.*$") %>%
+    str_remove("_$")
+  
+  return(site)
+}
+
+
+#check site names
+site.names <- map_chr(files, get.site)
+
+stopifnot(length(unique(site.names)) == length(files))
+
+
 #read one prediction file
 read.one.file <- function(file){
   
   input <- read_excel(file)
   
   #standardize filename column
-  file.col <- names(input)[tolower(names(input)) %in% c("source_file", "filename")]
+  file.col <- names(input)[tolower(names(input)) %in%
+                             c("source_file", "filename")]
   
   if(length(file.col) != 1){
     stop(paste("Check filename column in", basename(file)))
@@ -47,25 +64,22 @@ read.one.file <- function(file){
   input <- input %>%
     select(source_file,
            `Common name`,
-           Confidence,
            Confidence_source,
            Confidence_target)
   
   colnames(input) <- c("source_file",
                        "common_name",
-                       "confidence",
                        "confidence_source",
                        "confidence_target")
   
   #make confidence columns numeric
   input <- input %>%
-    mutate(across(c(confidence,
-                    confidence_source,
+    mutate(across(c(confidence_source,
                     confidence_target),
                   ~suppressWarnings(as.numeric(.))))
   
   #add site
-  input$site <- str_remove(basename(file), "_.*$")
+  input$site <- get.site(file)
   
   #make dates in the file
   input$date <- ymd(str_extract(input$source_file, "\\d{8}"))
@@ -145,6 +159,10 @@ all.detections <- all.detections %>%
   ))
 
 
+#add final confidence column
+all.detections$confidence_final <- NA_real_
+
+
 #keep calibrated detections above threshold and all Inf species
 detections.final <- all.detections %>%
   filter(is.infinite(threshold) |
@@ -167,11 +185,6 @@ detections.final <- detections.final %>%
 table(is.infinite(detections.final$threshold))
 range(detections.final$confidence_final)
 
-#check Inf species
-sort(unique(detections.final$common_name[
-  is.infinite(detections.final$threshold)
-]))
-
 
 #collapse to one record for species by site by day
 daily <- detections.final %>%
@@ -181,7 +194,7 @@ daily <- detections.final %>%
 
 
 #get a comprehensive list of sites
-sites <- sort(unique(all.detections$site))
+sites <- sort(unique(site.names))
 
 #get a comprehensive list of species
 species <- sort(unique(all.detections$common_name))
@@ -218,12 +231,25 @@ length(sites)
 length(species)
 length(dates)
 
+stopifnot(length(sites) == length(files))
 stopifnot(dim(all.obs)[1] == length(sites))
 stopifnot(dim(all.obs)[2] == length(species))
 stopifnot(dim(all.obs)[3] == length(dates))
 stopifnot(all(all.obs >= 0 & all.obs <= 1))
 
 
+#check values written to array
+daily.check <- daily %>%
+  rowwise() %>%
+  mutate(array_value = all.obs[site,
+                               common_name,
+                               as.character(date)]) %>%
+  ungroup()
+
+stopifnot(all(daily.check$confidence_final ==
+                daily.check$array_value))
+
+
 #save array
 saveRDS(all.obs,
-        "E:/TNC/TNC Plot Data/site_species_day_array.rds")
+        "E:/TNC/TNC Plot Data/site_species_day_detection_array.rds")
