@@ -1,0 +1,1 @@
+# TODO: Load all gis covariate data as a single tibble with individual site ids

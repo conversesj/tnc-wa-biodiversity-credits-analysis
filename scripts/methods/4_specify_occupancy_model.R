@@ -1,0 +1,1 @@
+# TODO: Construct the site x day x species detection history array and specifiy the occupancy model
