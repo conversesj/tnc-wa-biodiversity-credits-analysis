@@ -1,1 +1,1 @@
-This cache directory will contain cached data output from each methods script for fast retrieval
+This cache directory will contain your local cached data output from each methods script for fast retrieval
