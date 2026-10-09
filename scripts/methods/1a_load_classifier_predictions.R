@@ -22,18 +22,27 @@ predictions = lapply(files, function(f) {
   file_data = read_excel(f, progress = FALSE) %>% clean_names() %>% mutate(
     across(everything(), as.character),
     reserve = tolower(basename(dirname(f))),
-    xlsx_file = basename(f)
+    xlsx_file = basename(f),
+    site      = str_extract(basename(f), "^[^_]+_[^_]+")
   )
   bar$tick()
   return(file_data)
 }) %>% bind_rows()
 
+message("Dropping classes not of interest:")
+classes_to_drop = c(
+  "Abiotic Rain", "Abiotic Aircraft", "Abiotic Wind", "Abiotic Logging", "Abiotic Vehicle", "Biotic Insect", "Biotic Anuran", NA
+)
+print(classes_to_drop)
+predictions = predictions %>% filter(!common_name %in% classes_to_drop)
+
 message("Standardizing data case and type")
 predictions = predictions %>%
   mutate(
-    across(c(common_name, scientific_name), tolower),
-    across(c(common_name, scientific_name, reserve), factor),
-    across(c(confidence_source, confidence_target), as.numeric)
+    aru = str_extract(source_file, "^[^_]+"),
+    across(c(common_name, scientific_name, reserve, site), tolower),
+    across(c(common_name, scientific_name, reserve, site, aru), factor),
+    across(c(start_s, end_s, confidence, confidence_source, confidence_target), as.numeric)
   )
 
 str(predictions)

@@ -13,13 +13,8 @@ source("scripts/methods/0_config.R")
 message("Loading predictions from ", path_predictions_cache)
 predictions = readRDS(path_predictions_cache)
 
-message("Dropping classes not of interest (e.g. 'abiotic rain')")
-predictions = predictions %>% filter(!common_name %in% c(
-  "abiotic rain", "abiotic aircraft", "abiotic wind", "abiotic logging", "abiotic vehicle", "biotic insect", "biotic anuran", NA
-))
-
 message("Loading classifier calibration table from ", path_calibration_table)
-calibration = read_csv(path_calibration_table)
+calibration = read.csv(path_calibration_table)
 
 message("Retaining only predictions from the optimal submodel (i.e. default BirdNET for 'source' or custom OESF for 'target)")
 predictions_optimized = predictions %>%
@@ -29,16 +24,6 @@ predictions_optimized = predictions %>%
   ) %>%
   select(-confidence_source, -confidence_target) %>%
   filter(!is.na(confidence))
-
-message(crayon::yellow("Predictions for the classes below require require manual validation:"))
-predictions_optimized %>%
-  left_join(calibration %>% select(common_name, method), by = "common_name", relationship = "many-to-one") %>%
-  filter(is.na(method) | method == "manual") %>%
-  count(common_name, sort = TRUE) %>% print(n = Inf)
-
-class_to_inspect = "mourning dove"
-message(crayon::yellow("Reporting predictions for specific class '", class_to_inspect, "'"))
-predictions_optimized %>% filter(common_name == class_to_inspect) %>% print(n = Inf)
 
 message("Assign detections by retaining only predictions at or above species-specific thresholds (manual and uncalibrated species untouched)")
 detections = predictions_optimized %>%
