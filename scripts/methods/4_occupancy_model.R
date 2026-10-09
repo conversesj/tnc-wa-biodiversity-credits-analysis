@@ -3,6 +3,7 @@
 #
 ## INPUT:
 path_detections_cache  = "data/cache/2a_assign_detections/detections.rds"
+path_gis_data_cache    = "data/cache/3_load_gis_data/gis_data.rds"
 ## OUTPUT:
 out_cache_dir = "data/cache/4_occupancy_model"
 # ==============================================================================
@@ -51,6 +52,10 @@ str(y)
 example_species = "pacific wren"
 message("Example data access for ", example_species)
 y[example_species, , ]
+
+{
+  message(crayon::yellow("TODO: Load GIS data from", path_gis_data_cache))
+}
 
 {
   message(crayon::yellow("TODO: Parameterize the multi-species occupancy model"))
