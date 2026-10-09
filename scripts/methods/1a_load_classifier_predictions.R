@@ -36,10 +36,23 @@ classes_to_drop = c(
 print(classes_to_drop)
 predictions = predictions %>% filter(!common_name %in% classes_to_drop)
 
+message("Extracting ARU ID and datetime")
+predictions = predictions %>%
+  mutate(
+    # extract ARU ID from source file
+    aru  = str_split_i(source_file, "_", 1),
+    # extract date and hour from source file, offset by start_s seconds
+    datetime = as.POSIXct(str_extract(source_file, "\\d{8}_\\d{6}"), format = "%Y%m%d_%H%M%S", tz = tz) + as.numeric(start_s),
+  )
+
+missing_datetimes = unique(predictions %>% filter(is.na(datetime)) %>% pull(source_file))
+if (length(missing_datetimes) > 0) {
+  message(crayon::yellow("ERROR: Missing datetimes for invalid source_file:", missing_datetimes))
+}
+
 message("Standardizing data case and type")
 predictions = predictions %>%
   mutate(
-    aru = str_extract(source_file, "^[^_]+"),
     across(c(common_name, scientific_name, reserve, site), tolower),
     across(c(common_name, scientific_name, reserve, site, aru), factor),
     across(c(start_s, end_s, confidence, confidence_source, confidence_target), as.numeric)

@@ -10,8 +10,15 @@ path_calibration_table = "data/Jacuzzi_OESF_calibration.csv"
 
 source("scripts/methods/0_config.R")
 
-message("Loading detections from ", path_detections_cache)
+message("Loading species detections from ", path_detections_cache)
 detections = readRDS(path_detections_cache)
+
+missing_datetimes = unique(detections %>% filter(is.na(datetime)) %>% pull(source_file))
+if (length(missing_datetimes) > 0) {
+  message(crayon::yellow("WARNING: Missing datetimes for invalid source_file:", missing_datetimes))
+  message(crayon::yellow("These detections will be discarded"))
+  detections = detections %>% filter(!is.na(datetime))
+}
 
 message("Loading classifier calibration table from ", path_calibration_table)
 calibration = read.csv(path_calibration_table)

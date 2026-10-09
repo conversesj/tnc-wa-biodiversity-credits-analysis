@@ -25,6 +25,10 @@ predictions_optimized = predictions %>%
   select(-confidence_source, -confidence_target) %>%
   filter(!is.na(confidence))
 
+{
+  message(crayon::yellow("TODO: Incorporate any prediction validations here"))
+}
+
 message("Assign detections by retaining only predictions at or above species-specific thresholds (manual and uncalibrated species untouched)")
 detections = predictions_optimized %>%
   left_join(calibration %>% select(common_name, threshold, method), by = "common_name", relationship = "many-to-one") %>%

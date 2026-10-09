@@ -21,6 +21,11 @@ if (!exists("pkgs", envir = .GlobalEnv)) {
   }))
 }
 
+# Shared variables among scripts -----------------------------------------------
+
+# Timezone
+tz = "America/Los_Angeles"
+
 # Species metadata -------------------------------------------------------------
 
 # Load Avian Conservation Assessment Database (ACAD) Partners in Flight database
