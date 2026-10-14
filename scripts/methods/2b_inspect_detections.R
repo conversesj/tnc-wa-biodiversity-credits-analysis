@@ -2,10 +2,12 @@
 # Inspect all species detection data
 #
 ## CONFIG:
-class_predictions_to_inspect = "red-breasted sapsucker"
+class_predictions_to_inspect = c("anna's hummingbird", "red-breasted sapsucker")
 ## INPUT:
-path_detections_cache  = "data/cache/2a_assign_detections/detections.rds"
-path_calibration_table = "data/Jacuzzi_OESF_calibration.csv"
+path_detections_cache   = "data/cache/2a_assign_detections/detections.rds"
+path_calibration_table  = "data/Jacuzzi_OESF_calibration.csv"
+## OUTPUT:
+path_validations_needed = "data/cache/2b_inspect_detections/validations.csv"
 # ==============================================================================
 
 source("scripts/methods/0_config.R")
@@ -32,8 +34,16 @@ detections %>%
   filter(is.na(method) | method == "manual") %>%
   count(common_name, sort = TRUE) %>% print(n = Inf)
 
-message(crayon::yellow("Reporting predictions for class:", class_predictions_to_inspect))
-detections %>% filter(common_name == class_predictions_to_inspect) %>% print(n = Inf)
+message(crayon::yellow("Reporting predictions for class(es):"))
+print(class_predictions_to_inspect)
+validations_needed = detections %>% filter(common_name %in% class_predictions_to_inspect) %>% print(n = Inf)
+print(validations_needed)
+
+if (nrow(validations_needed) > 0) {
+  if (!dir.exists(dirname(path_validations_needed))) dir.create(dirname(path_validations_needed), recursive = TRUE)
+  message("Saving predictions needing validation to: ", path_validations_needed)
+  write_csv(validations_needed %>% arrange(common_name, source_file, start_s), path_validations_needed)
+}
 
 message("Number of focal species detected in each reserve (gamma diversity):")
 reserve_naive_richness_gamma = detections %>% group_by(reserve) %>%
