@@ -76,3 +76,11 @@ species_sites_reserve = detections %>% group_by(common_name, reserve) %>%
 p = ggplot(species_sites_reserve, aes(x = n_sites, y = reorder(common_name, n_sites, FUN = sum), fill = reserve)) +
   geom_vline(xintercept = sum(reserve_naive_richness_gamma$n_sites), linetype = "dashed", color = "red") +
   geom_col() + labs(x = "Number of sites", y = "Species", fill = "Reserve"); print(p)
+
+# Data quality check -- are any sites outliers?
+sort(table(detections$site))
+boxplot(table(detections$site))
+p = detections %>% count(site) %>%
+  ggplot(aes(x = n, y = reorder(site, n))) +
+  geom_col() + labs(x = "Predictions", y = "Site") +
+  scale_x_continuous(labels = scales::label_comma(), expand = c(0, 0)); print(p)
