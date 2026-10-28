@@ -2,12 +2,14 @@
 # Inspect all species detection data
 #
 ## CONFIG:
-class_predictions_to_inspect = c("anna's hummingbird", "red-breasted sapsucker")
+class_predictions_to_inspect = c("hermit warbler")
+subsample_validations = TRUE # subsample detections for validation of probabilistic threshold
+set.seed(1)
 ## INPUT:
 path_detections_cache   = "data/cache/2a_assign_detections/detections.rds"
 path_calibration_table  = "data/Jacuzzi_OESF_calibration.csv"
 ## OUTPUT:
-path_validations_needed = "data/cache/2b_inspect_detections/validations.csv"
+dir_validations_needed = "data/cache/2b_inspect_detections"
 # ==============================================================================
 
 source("scripts/methods/0_config.R")
@@ -25,25 +27,8 @@ if (length(missing_datetimes) > 0) {
 message("Loading classifier calibration table from ", path_calibration_table)
 calibration = read.csv(path_calibration_table)
 
-message("Filtering detections for only focal species")
-detections = detections %>% filter(common_name %in% focal_species)
-
-message(crayon::yellow("Predictions for the classes below require require manual validation:"))
-detections %>%
-  left_join(calibration %>% select(common_name, method), by = "common_name", relationship = "many-to-one") %>%
-  filter(is.na(method) | method == "manual") %>%
-  count(common_name, sort = TRUE) %>% print(n = Inf)
-
-message(crayon::yellow("Reporting predictions for class(es):"))
-print(class_predictions_to_inspect)
-validations_needed = detections %>% filter(common_name %in% class_predictions_to_inspect) %>% print(n = Inf)
-print(validations_needed)
-
-if (nrow(validations_needed) > 0) {
-  if (!dir.exists(dirname(path_validations_needed))) dir.create(dirname(path_validations_needed), recursive = TRUE)
-  message("Saving predictions needing validation to: ", path_validations_needed)
-  write_csv(validations_needed %>% arrange(common_name, source_file, start_s), path_validations_needed)
-}
+# message("Filtering detections for only focal species")
+# detections = detections %>% filter(common_name %in% focal_species)
 
 message("Number of focal species detected in each reserve (gamma diversity):")
 reserve_naive_richness_gamma = detections %>% group_by(reserve) %>%
@@ -77,6 +62,15 @@ p = ggplot(species_sites_reserve, aes(x = n_sites, y = reorder(common_name, n_si
   geom_vline(xintercept = sum(reserve_naive_richness_gamma$n_sites), linetype = "dashed", color = "red") +
   geom_col() + labs(x = "Number of sites", y = "Species", fill = "Reserve"); print(p)
 
+message("Number of unique site-date combinations at which each focal species was detected:")
+species_sitedates = detections %>%
+  mutate(date = as_date(datetime)) %>%
+  group_by(common_name) %>%
+  summarise(
+    n_sites     = n_distinct(site),
+    n_sitedates = n_distinct(site, date)
+  ) %>% arrange(desc(n_sitedates)) %>% print(n = Inf)
+
 # Data quality check -- are any sites outliers?
 sort(table(detections$site))
 boxplot(table(detections$site))
@@ -84,3 +78,35 @@ p = detections %>% count(site) %>%
   ggplot(aes(x = n, y = reorder(site, n))) +
   geom_col() + labs(x = "Predictions", y = "Site") +
   scale_x_continuous(labels = scales::label_comma(), expand = c(0, 0)); print(p)
+
+message(crayon::yellow("Predictions for the classes below require require manual validation:"))
+detections = detections %>% arrange(common_name, source_file, start_s)
+classes_requiring_validation = detections %>%
+  left_join(calibration %>% select(common_name, method), by = "common_name", relationship = "many-to-one") %>%
+  filter(is.na(method) | method == "manual") %>%
+  count(common_name, sort = TRUE) %>% print(n = Inf)
+classes_requiring_validation = classes_requiring_validation %>% pull(common_name)
+
+for (class_i in class_predictions_to_inspect) {
+  message("Reporting predictions for class: ", class_i)
+  validations_needed = detections %>% filter(common_name == class_i) %>% print()
+  
+  if (subsample_validations) {
+    breaks = seq(0.4, 1, by = 0.05)
+    
+    validation_sample = validations_needed %>%
+      mutate(conf_bin = cut(confidence, breaks = breaks, right = FALSE, include.lowest = TRUE)) %>%
+      group_by(conf_bin) %>% slice_sample(n = 10) %>% ungroup()
+    
+    count(validation_sample, conf_bin)
+    validations_needed = validation_sample %>% select(-conf_bin) %>% arrange(desc(confidence))
+  }
+  
+  if (nrow(validations_needed) > 0) {
+    validations_needed = validations_needed %>% mutate(truth = '', notes = '')
+    path_validations_needed = paste0(dir_validations_needed, "/", class_i, "_validations.csv")
+    if (!dir.exists(dirname(path_validations_needed))) dir.create(dirname(path_validations_needed), recursive = TRUE)
+    message("Saving predictions needing validation to: ", path_validations_needed)
+    write_csv(validations_needed, path_validations_needed)
+  }
+}
