@@ -10,9 +10,9 @@ if (!exists("pkgs", envir = .GlobalEnv)) {
     "janitor",          # data cleaning and standardization
     "readxl",           # excel data
     "tidyverse",        # general purpose
-    # utility
     "crayon",           # console warnings
-    "progress"          # dynamic progress bar
+    "progress",          # dynamic progress bar
+    "nimble"
   )
   print(sapply(pkgs, function(pkg) {
     if (!pkg %in% installed.packages()[, "Package"]) install.packages(pkg, dependencies = TRUE)
