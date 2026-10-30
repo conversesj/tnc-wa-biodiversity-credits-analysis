@@ -81,35 +81,35 @@ y[example_species, , ]
         # Observation Process  
         for(t in 1:n.days){
           
-          y[s,p,t] ~ dbern(z[s,p] * p.det[s,p,t])  #state * p 
+          y[s,p,t] ~ dbern(z[s,p] * p.det[s,p,t]) 
           
           #observation model
-          logit(p.det[s,p,t]) <- int.p + beta.effort*log(effort[p,t]) + p.rand.point[p] + p.rand.species[s]  
+          logit(p.det[s,p,t]) <- int.p + beta.effort*log(effort[p,t]) #+ p.rand.point[p] + p.rand.species[s]  
           
         }#t replicate days
         
         #occupancy model 
-        logit(psi[s,p]) <- int.psi  #+ covariates + psi.rand.species[s] and species*covar intrx
-      }#s species
-    }#p point
+        logit(psi[s,p]) <- int.psi #+ psi.rand.species[s]
+      }#p point
+    }#s species
     
-    for(p in 1:n.points){
-      p.rand.point[p] ~ dnorm(0,sd = sd.p.point)
-    }
-    for(s in 1:n.species){
-      p.rand.species[s] ~ dnorm(0,sd = sd.p.species)
-    }
-    
-    int.p ~ dnorm(0,1)
-    beta.effort ~ dnorm(0,1)
-    sd.p.point ~ dunif(0,5)
-    sd.p.species ~ dunif(0,5)
-    
-    int.psi ~ dnorm(0,1)
-    
+    #for(p in 1:n.points){
+    #  p.rand.point[p] ~ dnorm(0,sd = sd.p.point)
+    #}
+    #for(s in 1:n.species){
+    #  p.rand.species[s] ~ dnorm(0,sd = sd.p.species)
+    #}
     #for(s in 1:n.species){
     #  psi.rand.species[s] ~ dnorm(0,sd = sd.psi.species)
     #}
+    
+    int.p ~ dnorm(0,1)
+    beta.effort ~ dnorm(0,1)
+    #sd.p.point ~ dunif(0,5)
+    #sd.p.species ~ dunif(0,5)
+    
+    int.psi ~ dnorm(0,1)
+    #sd.psi.species ~ dunif(0,5)
     
   })
   
@@ -131,7 +131,7 @@ y[example_species, , ]
   y.final[which(is.na(y)==TRUE)] <- 0 
   
   # Bundle data
-  data <- list(y = y.final)
+  data <- list(y = y)
   
   n.species = dim(y)[1]
   n.points = dim(y)[2]

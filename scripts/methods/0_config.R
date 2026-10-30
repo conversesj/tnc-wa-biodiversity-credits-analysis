@@ -12,7 +12,9 @@ if (!exists("pkgs", envir = .GlobalEnv)) {
     "tidyverse",        # general purpose
     "crayon",           # console warnings
     "progress",          # dynamic progress bar
-    "nimble"
+    "nimble",
+    "coda",
+    "MCMCvis"
   )
   print(sapply(pkgs, function(pkg) {
     if (!pkg %in% installed.packages()[, "Package"]) install.packages(pkg, dependencies = TRUE)
