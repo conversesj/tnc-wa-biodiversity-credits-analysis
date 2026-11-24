@@ -10,11 +10,14 @@ if (!exists("pkgs", envir = .GlobalEnv)) {
     "janitor",          # data cleaning and standardization
     "readxl",           # excel data
     "tidyverse",        # general purpose
+    # statistics
+    "PRROC",            # classifier performance evaluation
+    "nimble",           # Bayesian MCMC modeling
+    "coda",             # MCMC output and diagnostics
+    "MCMCvis",          # MCMC visualization
+    # utility
     "crayon",           # console warnings
-    "progress",          # dynamic progress bar
-    "nimble",
-    "coda",
-    "MCMCvis"
+    "progress"          # dynamic progress bar
   )
   print(sapply(pkgs, function(pkg) {
     if (!pkg %in% installed.packages()[, "Package"]) install.packages(pkg, dependencies = TRUE)
@@ -47,6 +50,19 @@ focal_species = acad_regional_species %>% filter(
     home_range_radius_m <= 500 # maximum estimated home range radius
 ) %>% pull(common_name))) %>%
   pull(common_name) %>% sort()
+
+# Helper functions --------------------------------------------------------------------------------
+
+# Confidence score to logit scale (i.e. `qlogis`)
+conf_to_logit = function(c) {
+  c = min(max(c, 0.00001), 1.0 - 0.00001) # prevent undefined logit for extreme scores due to rounding error
+  return(log(c / (1 - c)))
+}
+
+# Logit to confidence score scale (i.e. `plogis`)
+logit_to_conf = function(l) {
+  return(1 / (1 + exp(-l)))
+}
 
 # Set ggplot theme -------------------------------------------------------------
 

@@ -8,3 +8,5 @@
 .Rproj.user
 *.xlsx
 *.rds
+
+data/cache/2b_inspect_detections
