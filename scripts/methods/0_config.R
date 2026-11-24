@@ -10,6 +10,7 @@ if (!exists("pkgs", envir = .GlobalEnv)) {
     "janitor",          # data cleaning and standardization
     "readxl",           # excel data
     "tidyverse",        # general purpose
+    "waldo",            # data inspection and debugging
     # statistics
     "PRROC",            # classifier performance evaluation
     "nimble",           # Bayesian MCMC modeling
@@ -27,6 +28,10 @@ if (!exists("pkgs", envir = .GlobalEnv)) {
 }
 
 # Shared variables among scripts -----------------------------------------------
+
+# NOTE: You must manually set your local Google Drive path to the raw data below
+in_path_gdrive = "/Users/gioj/Library/CloudStorage/GoogleDrive-giojacuzzi@gmail.com/.shortcut-targets-by-id/1ALEa2jYUKRvSzUO8e_mEXSZLJhUu_8St/TNC Biodiversity Monitoring - publication effort"
+if (!file.exists(in_path_gdrive)) stop("Missing path ", in_path_gdrive, ", did you set `in_path_gdrive` in `scripts/methods/0_config.R`?")
 
 # Timezone
 tz = "America/Los_Angeles"

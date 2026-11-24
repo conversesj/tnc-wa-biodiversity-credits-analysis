@@ -1,16 +1,11 @@
 # 1a_load_classifier_predictions.R =============================================
 # Load and collate all raw xlsx classifier prediction data into a single tibble
 #
-## CONFIG:
-# NOTE: You must manually set your local Google Drive path below
-in_path_gdrive = "/Users/gioj/Library/CloudStorage/GoogleDrive-giojacuzzi@gmail.com/.shortcut-targets-by-id/1ALEa2jYUKRvSzUO8e_mEXSZLJhUu_8St/TNC Biodiversity Monitoring - publication effort"
 ## OUTPUT:
 out_cache_dir = "data/cache/1a_load_classifier_predictions"
 # ==============================================================================
 
 source("scripts/methods/0_config.R")
-
-if (!file.exists(in_path_gdrive)) stop("Missing path ", in_path_gdrive, ", did you set `in_path_gdrive`?")
 
 in_path_predictions = file.path(in_path_gdrive, "Data/Classifier predictions")
 message("Finding all xlsx files under ", in_path_predictions)
